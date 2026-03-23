@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Cloned repo (downloaded by setup.ps1)
+dia/
+
+# Generated outputs
+output/
+
+# Model cache
+*.pth
+*.safetensors
+*.bin
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp

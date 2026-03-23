@@ -1,0 +1,13 @@
+# DiaTTS requirements
+# Do NOT pip install this directly for a fresh setup -- use setup.ps1 instead.
+# setup.ps1 installs torch with the correct CUDA index URL before this file.
+#
+# Manual torch install (if setting up without setup.ps1):
+#   pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+#
+# Then install dia and extras:
+#   pip install -e dia/
+#   pip install sounddevice
+
+# Playback support
+sounddevice

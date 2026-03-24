@@ -107,10 +107,26 @@ Dia is designed for dialogue. Always use speaker tags:
 | Token | Effect |
 |---|---|
 | `(laughs)` | Laughter |
+| `(chuckle)` | Soft chuckle |
 | `(sighs)` | Sigh |
+| `(gasps)` | Gasp |
 | `(coughs)` | Cough |
-| `(clears throat)` | Throat clearing |
+| `(sneezes)` | Sneeze |
 | `(sniffs)` | Sniff |
+| `(clears throat)` | Throat clearing |
+| `(inhales)` | Audible inhale |
+| `(exhales)` | Audible exhale |
+| `(mumbles)` | Mumbling |
+| `(humming)` | Humming |
+| `(whistles)` | Whistling |
+| `(singing)` | Singing |
+| `(sings)` | Singing (alt) |
+| `(groans)` | Groan |
+| `(screams)` | Scream |
+| `(claps)` | Clapping |
+| `(applause)` | Applause |
+| `(burps)` | Burp |
+| `(beep)` | Beep sound |
 
 Use sparingly — overusing or using unlisted non-verbals can cause audio artifacts.
 
@@ -120,12 +136,15 @@ Use sparingly — overusing or using unlisted non-verbals can cause audio artifa
 
 | Flag | Default | Description |
 |---|---|---|
-| `--temp` | `1.3` | Sampling temperature. Lower = more stable, higher = more expressive |
-| `--cfg-scale` | `3.0` | Classifier-free guidance scale |
-| `--top-p` | `0.95` | Nucleus sampling probability |
+| `--temp` | `1.8` | Sampling temperature. Lower = more stable, higher = more expressive (min ~1.2) |
+| `--cfg-scale` | `3.0` | Classifier-free guidance scale (keep ≤ 3.5) |
+| `--top-p` | `0.90` | Nucleus sampling probability |
+| `--cfg-filter-top-k` | `50` | CFG top-k filter (RobertAgee fork param) |
+| `--max-tokens` | `3072` | Max audio tokens to generate (~35s) |
 | `--seed` | random | Fix seed for reproducible output |
 | `--play` | off | Play audio immediately after generation |
 | `--out` | auto | Custom output path |
+| `--compile` | off | Enable torch.compile for faster generation (requires MSVC on Windows) |
 | `--cpu` | off | Force CPU inference (slow) |
 
 ---

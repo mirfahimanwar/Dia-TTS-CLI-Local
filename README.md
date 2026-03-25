@@ -19,6 +19,34 @@ audio from `[S1]` / `[S2]` tagged transcripts and supports voice cloning via an 
 
 ---
 
+## Quick Examples
+
+```powershell
+# Basic
+python dia_tts.py "[S1] Hello world, this is Dia TTS." --play
+
+# Two speakers
+python dia_tts.py "[S1] Hey! [S2] Hey yourself! [S1] (laughs) How are you?" --play
+
+# Voice clone — single line
+# Use spaces between flag and value, not = signs
+python dia_tts.py "[S1] Hello, how are you?" --audio-prompt "D:\path\to\voice.wav" --prompt-text "[S1] Transcript of what is said in the reference clip." --play
+
+# Voice clone — interactive, pre-loaded at startup
+python dia_tts.py --interactive --play --audio-prompt "D:\path\to\voice.wav" --prompt-text "[S1] Transcript of the reference clip."
+
+# Interactive — set voice inside the session
+python dia_tts.py --interactive --play
+# >>> /prompt D:\path\to\voice.wav
+# >>> /prompt-text [S1] Transcript of what is said in the reference clip.
+# >>> [S1] Now type whatever you want to generate.
+```
+
+> **Flag syntax:** always use a space between the flag and value — `--audio-prompt "file.wav"` not `--audio-prompt="file.wav"`
+> **Script name:** `dia_tts.py` — always call it with `python dia_tts.py`, not `diatts.py`
+
+---
+
 ## Requirements
 
 - Python 3.10+
@@ -38,7 +66,7 @@ cd DiaTTS
 ```
 
 `setup.ps1` will:
-1. Clone `nari-labs/dia` into `dia/`
+1. Clone [RobertAgee/dia](https://github.com/RobertAgee/dia) (optimized fork, ~40% less VRAM) into `dia/`
 2. Create a Python virtual environment
 3. Install PyTorch 2.6 with CUDA 12.4
 4. Install Dia and all dependencies
@@ -107,26 +135,32 @@ Dia is designed for dialogue. Always use speaker tags:
 | Token | Effect |
 |---|---|
 | `(laughs)` | Laughter |
-| `(chuckle)` | Soft chuckle |
 | `(sighs)` | Sigh |
 | `(gasps)` | Gasp |
 | `(coughs)` | Cough |
-| `(sneezes)` | Sneeze |
 | `(sniffs)` | Sniff |
 | `(clears throat)` | Throat clearing |
-| `(inhales)` | Audible inhale |
-| `(exhales)` | Audible exhale |
 | `(mumbles)` | Mumbling |
+| `(sings)` | Singing (alt) - closer to doodling |
+| `(singing)` | Singing - closer to humming |
+| `(groans)` | Groan |
+| `(beep)` | Beep sound |
+
+### Other Non-verbal tokens - these don't work that well for voice cloning
+
 | `(humming)` | Humming |
 | `(whistles)` | Whistling |
-| `(singing)` | Singing |
-| `(sings)` | Singing (alt) |
-| `(groans)` | Groan |
+| `(chuckle)` | Soft chuckle |
+| `(sneezes)` | Sneeze |
+| `(inhales)` | Audible inhale |
+| `(exhales)` | Audible exhale |
 | `(screams)` | Scream |
-| `(claps)` | Clapping |
+| `(claps)` | Clapping - closer to a thud|
 | `(applause)` | Applause |
 | `(burps)` | Burp |
-| `(beep)` | Beep sound |
+
+
+
 
 Use sparingly — overusing or using unlisted non-verbals can cause audio artifacts.
 

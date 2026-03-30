@@ -9,7 +9,7 @@ QUICK START:
 
 FULL USAGE:
   python dia_tts.py <text>        [--out FILE] [--play] [--temp T]
-                                  [--cfg-scale F] [--top-p F] [--seed N] [--cpu]
+                                  [--cfg-scale F] [--top-p F] [--seed N] [--cpu] [--dtype float16|bfloat16|float32]
   python dia_tts.py --interactive [--temp T] [--cfg-scale F]
   python dia_tts.py <text>        --audio-prompt AUDIO --prompt-text TEXT
 
@@ -61,15 +61,15 @@ REPO_ID = "nari-labs/Dia-1.6B-0626"
 _model = None
 
 
-def _load_model(cpu: bool = False) -> object:
+def _load_model(cpu: bool = False, dtype: str = "float16") -> object:
     global _model
     if _model is not None:
         return _model
     import torch
     from dia.model import Dia
     device = "cpu" if cpu else ("cuda" if torch.cuda.is_available() else "cpu")
-    compute_dtype = "float32" if device == "cpu" else "float16"
-    print(f"Loading Dia model on {device} (first run downloads ~3 GB to ~/.cache/huggingface/)...")
+    compute_dtype = "float32" if device == "cpu" else dtype
+    print(f"Loading Dia model on {device} with {compute_dtype} (first run downloads ~3 GB to ~/.cache/huggingface/)...")
     _model = Dia.from_pretrained(REPO_ID, compute_dtype=compute_dtype, device=device)
     return _model
 
@@ -94,6 +94,7 @@ def _generate(
     seed: int | None,
     cpu: bool,
     use_compile: bool = False,
+    dtype: str = "float16",
 ) -> np.ndarray:
     import torch
     if seed is not None:
@@ -104,7 +105,7 @@ def _generate(
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(seed)
 
-    model = _load_model(cpu=cpu)
+    model = _load_model(cpu=cpu, dtype=dtype)
 
     # Build full prompt text when voice cloning.
     # When cloning, the generation text is a CONTINUATION of the prompt transcript --
@@ -134,9 +135,10 @@ def _generate(
             use_torch_compile=use_compile,
             verbose=True,
         )
-    except RuntimeError as e:
-        if use_compile and "cl is not found" in str(e):
-            print("  Warning: --compile requires MSVC (cl.exe) on Windows. Falling back to eager mode.")
+    except Exception as e:
+        if use_compile and ("cl is not found" in str(e) or "Compiler" in str(e) or "BackendCompilerFailed" in type(e).__name__):
+            print("  Warning: --compile requires MSVC (cl.exe) on PATH. Falling back to eager mode.")
+            print("  To fix: add cl.exe to PATH or run from 'Developer PowerShell for VS 2022'.")
             audio = model.generate(
                 text=full_text,
                 audio_prompt=audio_prompt,
@@ -198,6 +200,7 @@ def _run_once(args) -> None:
         seed=args.seed,
         cpu=args.cpu,
         use_compile=args.compile,
+        dtype=args.dtype,
     )
     _save(audio, args.out)
     print(f"  Generated in {time.time() - t0:.1f}s")
@@ -317,6 +320,7 @@ def _run_interactive(args) -> None:
                 seed=seed,
                 cpu=args.cpu,
                 use_compile=args.compile,
+                dtype=args.dtype,
             )
             _save(audio, out_path)
             print(f"  Generated in {time.time() - t0:.1f}s")
@@ -341,10 +345,14 @@ def main() -> None:
     parser.add_argument("--cfg-scale", type=float, default=3.0, metavar="F", help="CFG scale (default: 3.0)")
     parser.add_argument("--top-p", type=float, default=0.90, metavar="F", help="Nucleus sampling (default: 0.90)")
     parser.add_argument("--cfg-filter-top-k", type=int, default=50, metavar="K", dest="cfg_filter_top_k", help="CFG top-k filter (default: 50)")
+    # DAC (Descript Audio Codec) runs at ~86 audio tokens per second of output audio.
+    # max_tokens ÷ 86 ≈ max audio duration. Examples: 512≈6s, 1024≈12s, 2048≈24s, 3072≈35s.
+    # Lower values cap long generations early and reduce KV-cache slowdown on long clips.
     parser.add_argument("--max-tokens", type=int, default=3072, metavar="N", dest="max_tokens", help="Max audio tokens to generate (default: 3072, ~35s)")
     parser.add_argument("--seed", type=int, default=None, metavar="N", help="Random seed for reproducibility")
     parser.add_argument("--cpu", action="store_true", help="Force CPU inference (slow)")
     parser.add_argument("--compile", action="store_true", help="Enable torch.compile (first run ~60s slower, subsequent runs faster)")
+    parser.add_argument("--dtype", choices=["float16", "bfloat16", "float32"], default="float16", metavar="DTYPE", help="Model compute dtype: float16 (default), bfloat16, float32")
 
     args = parser.parse_args()
 

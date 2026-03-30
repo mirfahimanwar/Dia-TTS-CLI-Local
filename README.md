@@ -174,7 +174,7 @@ Use sparingly — overusing or using unlisted non-verbals can cause audio artifa
 | `--cfg-scale` | `3.0` | Classifier-free guidance scale (keep ≤ 3.5) |
 | `--top-p` | `0.90` | Nucleus sampling probability |
 | `--cfg-filter-top-k` | `50` | CFG top-k filter (RobertAgee fork param) |
-| `--max-tokens` | `3072` | Max audio tokens to generate (~35s) |
+| `--max-tokens` | `3072` | Max audio tokens to generate. DAC runs at ~86 tokens/sec, so: 512≈6s, 1024≈12s, 2048≈24s, 3072≈35s. Lower values speed up long generations. |
 | `--seed` | random | Fix seed for reproducible output |
 | `--play` | off | Play audio immediately after generation |
 | `--out` | auto | Custom output path |

@@ -56,8 +56,10 @@ if ($LASTEXITCODE -ne 0) { throw "extras install failed" }
 Write-Host ""
 Write-Host "Setup complete!" -ForegroundColor Green
 Write-Host ""
-Write-Host "Activate the venv:" -ForegroundColor Yellow
-Write-Host "  .\venv\Scripts\Activate.ps1"
+
+# Activate the venv in the current shell (only works when dot-sourced: . .\setup.ps1)
+. "$ROOT\venv\Scripts\Activate.ps1"
+Write-Host "Venv activated." -ForegroundColor Green
 Write-Host ""
 Write-Host "Quick start:" -ForegroundColor Yellow
 Write-Host '  python dia_tts.py "[S1] Hello world, this is Dia TTS."'

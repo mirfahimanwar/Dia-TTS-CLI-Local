@@ -348,7 +348,7 @@ def main() -> None:
     # DAC (Descript Audio Codec) runs at ~86 audio tokens per second of output audio.
     # max_tokens ÷ 86 ≈ max audio duration. Examples: 512≈6s, 1024≈12s, 2048≈24s, 3072≈35s.
     # Lower values cap long generations early and reduce KV-cache slowdown on long clips.
-    parser.add_argument("--max-tokens", type=int, default=5000, metavar="N", dest="max_tokens", help="Max audio tokens to generate (default: 3072, ~35s)")
+    parser.add_argument("--max-tokens", type=int, default=3072, metavar="N", dest="max_tokens", help="Max audio tokens to generate (default: 3072, ~35s). Hard cap: 3072 (decoder positional limit).")
     parser.add_argument("--seed", type=int, default=None, metavar="N", help="Random seed for reproducibility")
     parser.add_argument("--cpu", action="store_true", help="Force CPU inference (slow)")
     parser.add_argument("--compile", action="store_true", help="Enable torch.compile (first run ~60s slower, subsequent runs faster)")

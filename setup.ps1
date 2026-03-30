@@ -48,13 +48,16 @@ Write-Host "[4/5] Installing dia and dependencies..." -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { throw "dia install failed" }
 
 # ── 5. Install extras ─────────────────────────────────────────────────────────
-Write-Host "[5/5] Installing extras (sounddevice)..." -ForegroundColor Cyan
-& $PIP install sounddevice
+Write-Host "[5/5] Installing extras (sounddevice, wheel)..." -ForegroundColor Cyan
+& $PIP install sounddevice wheel
 if ($LASTEXITCODE -ne 0) { throw "extras install failed" }
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "Setup complete!" -ForegroundColor Green
+Write-Host ""
+Write-Host "Optional: for --compile (torch.compile) support, see the Performance / Speed" -ForegroundColor Yellow
+Write-Host "section in README.md for one-time PowerShell profile setup (requires VS Build Tools 2022)." -ForegroundColor Yellow
 Write-Host ""
 
 # Activate the venv in the current shell (only works when dot-sourced: . .\setup.ps1)

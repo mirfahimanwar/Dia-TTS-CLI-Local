@@ -183,6 +183,102 @@ Use sparingly — overusing or using unlisted non-verbals can cause audio artifa
 
 ---
 
+## Performance / Speed
+
+Dia generates audio token-by-token (autoregressive). On an RTX 4090 laptop expect ~2.0–2.6× RTF (RTF = generation time ÷ audio duration — lower is better). Tips to speed it up:
+
+### `--dtype` (precision)
+
+| Flag | VRAM | Speed | Notes |
+|---|---|---|---|
+| `--dtype float16` | ~4.4 GB | Fastest | Default |
+| `--dtype bfloat16` | ~4.4 GB | Fast | More numerically stable than float16 |
+| `--dtype float32` | ~7.9 GB | Slowest | No benefit over 16-bit on GPU |
+
+### `--max-tokens` (cap generation length)
+
+DAC runs at ~86 audio tokens/sec. Lowering `--max-tokens` caps the KV-cache growth and speeds up long clips:
+- `--max-tokens 512` ≈ 6s max
+- `--max-tokens 1024` ≈ 12s max (good for most sentences)
+- `--max-tokens 3072` ≈ 35s max (default)
+
+### `--compile` (torch.compile)
+
+Enables `torch.compile` which fuses GPU operations for faster generation. First run in a session takes ~60s to JIT-compile; subsequent runs in the same session are faster.
+
+**Benchmark (RTX 4090 Laptop, ~11s clip):**
+| Mode | Time | RTF |
+|---|---|---|
+| Default (eager) | 24.7s | 2.17 |
+| `--compile` (warm) | 8.8s | **0.77** |
+
+~3× speedup — drops below real-time on a laptop 4090.
+
+**Requires MSVC (`cl.exe`) + C++ headers on Windows.** Just adding `cl.exe` to PATH is not enough — `torch.compile` also needs the MSVC INCLUDE/LIB environment variables, which are set by `vcvars64.bat`. Setup (one-time):
+
+1. Install [Visual Studio Build Tools 2022](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022) — select the **"Desktop development with C++"** workload only
+
+2. Find your MSVC version folder:
+   ```
+   C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\
+   ```
+   There will be one subfolder like `14.44.35207` — note that name.
+
+3. Create (or edit) your PowerShell profile to source the full MSVC environment on every terminal launch:
+   ```powershell
+   New-Item -ItemType Directory -Force -Path (Split-Path $PROFILE)
+   notepad $PROFILE
+   ```
+   Add the following to the profile file (replace `<version>` with the folder name from step 2, and adjust the `miniconda3` path if Python is installed elsewhere):
+   ```powershell
+   # MSVC full environment (for torch.compile / cl.exe)
+   $vcvars = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat'
+   if (Test-Path $vcvars) {
+       cmd /c "`"$vcvars`" & set" | ForEach-Object {
+           if ($_ -match '^([^=]+)=(.*)$') {
+               [System.Environment]::SetEnvironmentVariable($matches[1], $matches[2])
+           }
+       }
+   }
+
+   # MSVC bin on PATH
+   $msvc = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\<version>\bin\Hostx64\x64'
+   if (Test-Path $msvc) {
+       $env:Path += ";$msvc"
+   }
+
+   # Python libs for torch.compile linker (python313.lib etc.)
+   $pylibs = 'C:\Users\<username>\miniconda3\libs'
+   if (Test-Path $pylibs) {
+       $env:LIB += ";$pylibs"
+   }
+   ```
+
+4. Restart your terminal and verify `cl.exe` is found:
+   ```powershell
+   Get-Command cl
+   ```
+   > **Note:** Do not use `where cl` — in PowerShell, `where` is an alias for `Where-Object`, not `where.exe`, and will silently return nothing even if `cl.exe` is on PATH.
+
+5. Use `--compile` freely.
+
+### `flash-attn` (Flash Attention 2)
+
+Reduces memory bandwidth during attention — most effective on long generations where the KV-cache is large. **Requires:**
+- MSVC (`cl.exe`) installed and on PATH (see above)
+- System CUDA toolkit version matching PyTorch's CUDA version (PyTorch 2.6 uses CUDA 12.4 — if your system CUDA toolkit is a different version, this will fail to compile)
+- `wheel` package: `pip install wheel`
+
+Install:
+```powershell
+pip install wheel
+pip install flash-attn --no-build-isolation
+```
+
+If you get a CUDA version mismatch error, install the matching CUDA toolkit from [developer.nvidia.com/cuda-toolkit-archive](https://developer.nvidia.com/cuda-toolkit-archive).
+
+---
+
 ## Troubleshooting
 
 **CUDA out of memory**

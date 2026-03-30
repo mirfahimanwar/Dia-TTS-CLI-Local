@@ -9,7 +9,7 @@ QUICK START:
 
 FULL USAGE:
   python dia_tts.py <text>        [--out FILE] [--play] [--temp T]
-                                  [--cfg-scale F] [--top-p F] [--seed N] [--cpu] [--dtype float16|bfloat16|float32]
+                                  [--cfg-scale F] [--top-p F] [--seed N] [--cpu] [--dtype DTYPE] [--chunk]
   python dia_tts.py --interactive [--temp T] [--cfg-scale F]
   python dia_tts.py <text>        --audio-prompt AUDIO --prompt-text TEXT
 
@@ -36,6 +36,7 @@ TEMPERATURE:
 
 import argparse
 import os
+import re
 import sys
 import time
 
@@ -80,6 +81,94 @@ def _ensure_speaker_tag(text: str) -> str:
     if not stripped.startswith("[S1]") and not stripped.startswith("[S2]"):
         return "[S1] " + stripped
     return stripped
+
+
+def _chunk_text(text: str, max_bytes: int = 500) -> list[str]:
+    """Split into ≤max_bytes (UTF-8) chunks on sentence boundaries, preserving [S1]/[S2] tags."""
+    # Split after sentence-ending punctuation or before a speaker tag
+    pieces = re.split(r'(?<=[.!?])\s+|(?=\[S[12]\])', text.strip())
+    pieces = [p.strip() for p in pieces if p.strip()]
+
+    chunks: list[str] = []
+    current = ""
+    last_tag = "[S1]"
+
+    for piece in pieces:
+        m = re.match(r'^\[S[12]\]', piece)
+        if m:
+            last_tag = m.group()
+        if not current:
+            current = piece
+        elif len((current + " " + piece).encode('utf-8')) <= max_bytes:
+            current += " " + piece
+        else:
+            chunks.append(current)
+            current = piece if re.match(r'^\[S[12]\]', piece) else f"{last_tag} {piece}"
+
+    if current:
+        chunks.append(current)
+    return chunks if chunks else [text]
+
+
+def _generate_chunked(
+    text: str,
+    audio_prompt: str | None,
+    prompt_text: str | None,
+    temp: float,
+    cfg_scale: float,
+    top_p: float,
+    cfg_filter_top_k: int,
+    max_tokens: int | None,
+    seed: int | None,
+    cpu: bool,
+    use_compile: bool = False,
+    dtype: str = "float16",
+) -> np.ndarray:
+    """Chunk text, generate each segment, and concatenate into one audio array."""
+    # Do NOT pre-apply _ensure_speaker_tag here — _generate handles that internally,
+    # and for voice cloning the continuation text must NOT start with [S1] or Dia
+    # treats it as invalid and falls back to its default voice (double-tag bug).
+    prompt_overhead = (len(prompt_text.encode('utf-8')) + 10) if prompt_text else 0
+    # 500 bytes ≈ 350-400 ASCII chars ≈ ~12-15s of audio — safely inside the model's
+    # natural ~19s audio generation window. Going higher risks speech getting cut off
+    # mid-sentence even though the text fits in the encoder.
+    max_bytes = max(200, 500 - prompt_overhead)
+    chunks = _chunk_text(text, max_bytes=max_bytes)
+
+    if len(chunks) == 1:
+        return _generate(
+            text=text, audio_prompt=audio_prompt, prompt_text=prompt_text,
+            temp=temp, cfg_scale=cfg_scale, top_p=top_p,
+            cfg_filter_top_k=cfg_filter_top_k, max_tokens=max_tokens,
+            seed=seed, cpu=cpu, use_compile=use_compile, dtype=dtype,
+        )
+
+    print(f"  Splitting into {len(chunks)} chunks (≤{max_bytes} bytes each)")
+    all_audio: list[np.ndarray] = []
+    for i, chunk in enumerate(chunks, 1):
+        preview = chunk[:70] + ("..." if len(chunk) > 70 else "")
+        print(f"  [chunk {i}/{len(chunks)}] {preview}")
+        # When voice cloning, strip any leading speaker tag added by _chunk_text.
+        # _generate appends chunk text directly after the prompt transcript, so a
+        # leading [S1] would create a new speaker turn ([S1]...[S1]...) instead of
+        # a natural continuation, causing the voice to drift.
+        chunk_text = re.sub(r'^\[S[12]\]\s*', '', chunk) if audio_prompt and prompt_text else chunk
+        audio = _generate(
+            text=chunk_text,
+            audio_prompt=audio_prompt,
+            prompt_text=prompt_text,
+            temp=temp,
+            cfg_scale=cfg_scale,
+            top_p=top_p,
+            cfg_filter_top_k=cfg_filter_top_k,
+            max_tokens=max_tokens,
+            seed=seed,
+            cpu=cpu,
+            use_compile=use_compile,
+            dtype=dtype,
+        )
+        all_audio.append(audio)
+    return np.concatenate(all_audio)
 
 
 def _generate(
@@ -188,7 +277,8 @@ def _play(audio: np.ndarray) -> None:
 
 def _run_once(args) -> None:
     t0 = time.time()
-    audio = _generate(
+    gen_fn = _generate_chunked if args.chunk else _generate
+    audio = gen_fn(
         text=args.text,
         audio_prompt=getattr(args, "audio_prompt", None),
         prompt_text=getattr(args, "prompt_text", None),
@@ -213,7 +303,7 @@ def _run_interactive(args) -> None:
     print("  Speaker tags: [S1] speaker one   [S2] speaker two")
     print("  Non-verbals:  (laughs) (sighs) (coughs) (clears throat)")
     print("  Commands:  /temp <value>   /cfg <value>   /top-p <value>  /cfg-filter-k <n>")
-    print("             /seed <n>       /noseed         /play  /noplay")
+    print("             /seed <n>       /noseed         /play  /noplay  /chunk  /nochunk")
     print("             /prompt <path>  /noprompt       /quit")
     print()
 
@@ -225,6 +315,7 @@ def _run_interactive(args) -> None:
     play = args.play
     audio_prompt = getattr(args, "audio_prompt", None)
     prompt_text = getattr(args, "prompt_text", None)
+    chunk = args.chunk
     session = int(time.time())
     out_dir = os.path.join(_HERE, "output", f"session_{session}")
     os.makedirs(out_dir, exist_ok=True)
@@ -300,6 +391,12 @@ def _run_interactive(args) -> None:
                 audio_prompt = None
                 prompt_text = None
                 print("  audio_prompt cleared")
+            elif cmd == "/chunk":
+                chunk = True
+                print("  chunking on")
+            elif cmd == "/nochunk":
+                chunk = False
+                print("  chunking off")
             else:
                 print(f"  Unknown command: {cmd}")
             continue
@@ -308,7 +405,8 @@ def _run_interactive(args) -> None:
         out_path = os.path.join(out_dir, f"{counter:03d}.wav")
         t0 = time.time()
         try:
-            audio = _generate(
+            gen_fn = _generate_chunked if chunk else _generate
+            audio = gen_fn(
                 text=line,
                 audio_prompt=audio_prompt,
                 prompt_text=prompt_text,
@@ -353,6 +451,7 @@ def main() -> None:
     parser.add_argument("--cpu", action="store_true", help="Force CPU inference (slow)")
     parser.add_argument("--compile", action="store_true", help="Enable torch.compile (first run ~60s slower, subsequent runs faster)")
     parser.add_argument("--dtype", choices=["float16", "bfloat16", "float32"], default="float16", metavar="DTYPE", help="Model compute dtype: float16 (default), bfloat16, float32")
+    parser.add_argument("--chunk", action="store_true", help="Auto-split text into ≤950-byte chunks and concatenate audio (overcomes the ~1024-byte encoder limit; handles unicode correctly)")
 
     args = parser.parse_args()
 

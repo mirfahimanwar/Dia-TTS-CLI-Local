@@ -127,7 +127,8 @@ Dia is designed for dialogue. Always use speaker tags:
 
 - Always start with `[S1]` (added automatically if omitted)
 - Alternate between `[S1]` and `[S2]` — do not repeat the same speaker consecutively
-- Keep input length to roughly 5-20 seconds equivalent (very short or very long inputs sound unnatural)
+- Keep input length to roughly 5-20 seconds equivalent per chunk (very short or very long inputs sound unnatural)
+- For longer texts, use `--chunk` to auto-split at sentence/speaker-tag boundaries and stitch the audio together
 - End with a speaker tag (e.g. `[S2]`) to improve audio quality at the end
 
 ### Non-verbal tokens
@@ -179,6 +180,7 @@ Use sparingly — overusing or using unlisted non-verbals can cause audio artifa
 | `--play` | off | Play audio immediately after generation |
 | `--out` | auto | Custom output path |
 | `--compile` | off | Enable torch.compile for faster generation (requires MSVC on Windows) |
+| `--chunk` | off | Auto-split long text into ≤500-byte chunks at sentence/speaker-tag boundaries and concatenate the audio. Use this for inputs longer than ~15s to avoid speech being cut off mid-sentence. |
 | `--cpu` | off | Force CPU inference (slow) |
 
 ---

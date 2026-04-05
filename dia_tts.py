@@ -204,13 +204,13 @@ def _generate(
         full_text = _ensure_speaker_tag(prompt_text).rstrip() + " " + text.strip()
     else:
         full_text = _ensure_speaker_tag(text)
-        # Append a trailing speaker tag to prevent audio cutoff/degradation at the end.
-        # Only for non-cloning: when cloning, a dangling speaker tag causes abrupt cutoff.
-        if not full_text.rstrip().endswith(("[S1]", "[S2]")):
-            last_s1 = full_text.rfind("[S1]")
-            last_s2 = full_text.rfind("[S2]")
-            last_tag = "[S1]" if last_s1 >= last_s2 else "[S2]"
-            full_text = full_text.rstrip() + " " + last_tag
+
+    # Append a trailing speaker tag to prevent audio cutoff at the end.
+    if not full_text.rstrip().endswith(("[S1]", "[S2]")):
+        last_s1 = full_text.rfind("[S1]")
+        last_s2 = full_text.rfind("[S2]")
+        last_tag = "[S1]" if last_s1 >= last_s2 else "[S2]"
+        full_text = full_text.rstrip() + " yeah " + last_tag
 
     try:
         audio = model.generate(
